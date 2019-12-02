@@ -1,8 +1,6 @@
 // Thread Pool
 use crate::Vec3;
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
 struct Worker {
@@ -21,9 +19,9 @@ trait FnBox {
 }
 
 pub struct PixelData {
-    pixel: Vec3,
-    x: usize,
-    y: usize,
+    pub pixel: Vec3,
+    pub x: usize,
+    pub y: usize,
 }
 
 impl<F: FnOnce() -> PixelData> FnBox for F {
@@ -62,15 +60,13 @@ impl Worker {
     }
 }
 impl ThreadPool {
-    pub fn new(size: usize) -> ThreadPool {
+    pub fn new(size: usize, pixel_sender: Arc<Mutex<mpsc::Sender<PixelData>>>) -> ThreadPool {
         assert!(size > 0);
         let (sender, receiver) = mpsc::channel();
         let receiver = Arc::new(Mutex::new(receiver));
-        let (pixel_sender, _pixel_receiver) = mpsc::channel();
-        let pixel_sender_arc = Arc::new(Mutex::new(pixel_sender));
         let mut workers = Vec::with_capacity(size);
         for i in 0..size {
-            workers.push(Worker::new(i, receiver.clone(), pixel_sender_arc.clone()));
+            workers.push(Worker::new(i, receiver.clone(), pixel_sender.clone()));
         }
         ThreadPool { workers, sender }
     }
