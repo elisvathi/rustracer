@@ -1,6 +1,7 @@
 // Camera
 use crate::{Float, Ray, Vec3};
 
+#[derive(Copy, Clone)]
 pub struct Camera {
     pub position: Vec3,
     pub direction: Vec3,

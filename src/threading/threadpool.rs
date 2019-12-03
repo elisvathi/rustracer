@@ -1,5 +1,6 @@
 // Thread Pool
-use crate::Vec3;
+use crate::{BoundingBoxNode, Hittable, Vec3};
+use std::rc::Rc;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
@@ -7,7 +8,10 @@ struct Worker {
     id: usize,
     thread: Option<thread::JoinHandle<()>>,
 }
-type Job = Box<dyn FnBox + Send + 'static>;
+struct Job {
+    fun: Box<dyn FnBox + Send + 'static>,
+    arg: Arc<BoundingBoxNode>,
+}
 
 enum Message {
     NewJob(Job),
@@ -15,7 +19,7 @@ enum Message {
 }
 
 trait FnBox {
-    fn call_box(self: Box<Self>) -> PixelData;
+    fn call_box(self: Box<Self>, a: Arc<BoundingBoxNode>) -> PixelData;
 }
 
 pub struct PixelData {
@@ -24,9 +28,9 @@ pub struct PixelData {
     pub y: usize,
 }
 
-impl<F: FnOnce() -> PixelData> FnBox for F {
-    fn call_box(self: Box<F>) -> PixelData {
-        (*self)()
+impl<F: FnOnce(Arc<BoundingBoxNode>) -> PixelData> FnBox for F {
+    fn call_box(self: Box<F>, a: Arc<BoundingBoxNode>) -> PixelData {
+        (*self)(a)
     }
 }
 
@@ -45,7 +49,7 @@ impl Worker {
             let message = receiver.lock().unwrap().recv().unwrap();
             match message {
                 Message::NewJob(job) => {
-                    let result = job.call_box();
+                    let result = job.fun.call_box(job.arg);
                     sender.lock().unwrap().send(result).unwrap();
                 }
                 Message::Terminate => {
@@ -70,11 +74,14 @@ impl ThreadPool {
         }
         ThreadPool { workers, sender }
     }
-    pub fn execute<F>(&self, f: F)
+    pub fn execute<F>(&self, f: F, a: Rc<BoundingBoxNode>)
     where
-        F: FnOnce() -> PixelData + Send + 'static,
+        F: FnOnce(Rc<BoundingBoxNode>) -> PixelData + Send + 'static,
     {
-        let job = Box::new(f);
+        let job = Job {
+            fun: Box::new(f),
+            arg: Arc::new(BoundingBoxNode::zero()),
+        };
         self.sender.send(Message::NewJob(job)).unwrap();
     }
 }
